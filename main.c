@@ -7,8 +7,8 @@
 
 const size_t numprocs = 4;
 const int vec_size = 100;
-double resultados[4];
-
+int resultados[4];
+int RANGE = 1000;
 int* vector;
 
 void* fillVector(void * id){
@@ -18,11 +18,27 @@ void* fillVector(void * id){
 	
 	// int myPart = 
 	unsigned int i;
-	printf("Thread: %ld(%d) - Process ID: %5d Pai:%5d\n",ID,tid,getpid(),getppid());
+	printf("Threads 1: %ld(%d) - Process ID: %5d Pai:%5d\n",ID,tid,getpid(),getppid());
 	// printf("Thread: %ld\n",ID);
 	for(i = ID; i < vec_size; i+=numprocs){
-		vector[i] = rand();
+		vector[i] = rand()%RANGE;
 	}
+	pthread_exit(NULL);
+}
+
+void* getPartitionMax(void * id){
+	long ID=(long)id;
+	pid_t tid;
+	tid = syscall(SYS_gettid);
+	printf("Threads 2: %ld(%d) - Process ID: %5d Pai:%5d\n",ID,tid,getpid(),getppid());
+
+	unsigned int i;
+	int max=vector[ID];
+	for(i = ID; i < vec_size; i+=numprocs){
+		if(vector[i] > max)
+			max = vector[i];
+	}
+	resultados[ID] = max;
 	pthread_exit(NULL);
 }
 
@@ -50,23 +66,33 @@ int main(){
 	for (i = 0; i != numprocs; ++i)
 		pthread_join(handles[i], NULL); //NULL -> parâmetro de retorno
 
-	long i;
+
+	puts("");
+	//Exibe o vetor
+	for (i = 0; i < vec_size; ++i)		
+		printf("%d, ", vector[i]); 
+
+	puts("\n");
+
+	// long i;
+	// Aqui descobriremos o maior valor de cada thread
 	for (i = 0; i < numprocs; i++){
-		pthread_create(&handles[i], &attr, fillVector, (void*)i);
+		pthread_create(&handles[i], &attr, getPartitionMax, (void*)i);
 	}
 	
 	// Espera todas as threads terminarem.
 	for (i = 0; i != numprocs; ++i)
 		pthread_join(handles[i], NULL); //NULL -> parâmetro de retorno
 	
-	/* Soma o resultado de cada thread. Observe que cada thread escreve em uma posição do vetor de resultados (o que evita inconsistência).*/
-	double pi=0.0;
-	for (i = 0; i != numprocs; ++i)		
-		pi=pi+resultados[i]; 
-
-	for (i = 0; i < vec_size; ++i)		
-		printf("%d, ", vector[i]); 
-	
 	puts("");
+
+	/* Compara o resultado de cada thread. */
+	int resultado = resultados[0];
+	for (i = 0; i < numprocs; i++){
+		printf("[%d], ",resultados[i]); 
+		if(resultados[i] > resultado)
+			resultado = resultados[i];
+	}
+	printf("\n\nO maior numero e %d\n", resultado);
 	return 0;
 }
